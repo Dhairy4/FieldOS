@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: fieldos-db
+    environment:
+      POSTGRES_USER: fieldos
+      POSTGRES_PASSWORD: fieldos
+      POSTGRES_DB: fieldos
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fieldos -d fieldos"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: fieldos-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg2://fieldos:fieldos@postgres:5432/fieldos
+      GNANI_API_KEY: ${GNANI_API_KEY}
+      GNANI_PRISMA_ENDPOINT: ${GNANI_PRISMA_ENDPOINT}
+      GNANI_TIMBRE_ENDPOINT: ${GNANI_TIMBRE_ENDPOINT}
+      SECRET_KEY: ${SECRET_KEY}
+      LLM_API_KEY: ${LLM_API_KEY}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:
