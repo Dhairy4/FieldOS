@@ -62,3 +62,5 @@ alembic.ini
 # Misc
 *.pdf
 *.md.bak
+# Next.js
+next-env.d.ts

@@ -1,0 +1,20 @@
+{
+  "name": "fieldos-frontend",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "dashboard",
+    "mobile"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n dashboard,mobile -c blue,green \"npm:dev:dashboard\" \"npm:dev:mobile\"",
+    "start": "concurrently -k -n dashboard,mobile -c blue,green \"npm run start -w @fieldos/dashboard\" \"npm run start -w @fieldos/mobile\"",
+    "dev:dashboard": "npm run dev -w @fieldos/dashboard",
+    "dev:mobile": "npm run dev -w @fieldos/mobile",
+    "build": "npm run build -w @fieldos/dashboard -w @fieldos/mobile",
+    "lint": "npm run lint -w @fieldos/dashboard -w @fieldos/mobile"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}

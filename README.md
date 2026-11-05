@@ -70,21 +70,20 @@ alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
-### Frontend Setup (Mobile)
+### Frontend Setup
 
 ```bash
-cd frontend/mobile
+cd frontend
 npm install
 npm run dev
 ```
 
-### Frontend Setup (Dashboard)
+This starts both apps at once:
 
-```bash
-cd frontend/dashboard
-npm install
-npm run dev
-```
+- Dashboard (supervisors): http://localhost:3002
+- Mobile (technicians): http://localhost:3001
+
+To run just one: `npm run dev:dashboard` or `npm run dev:mobile`.
 
 ### Run with Docker
 

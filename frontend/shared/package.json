@@ -1,0 +1,27 @@
+{
+  "name": "@fieldos/shared",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "types": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./types": "./types.ts",
+    "./constants": "./constants.ts",
+    "./utils": "./utils.ts",
+    "./api": "./api.ts",
+    "./components/ui/*": "./components/ui/*.tsx",
+    "./styles/*": "./styles/*",
+    "./tailwind.preset": "./tailwind.preset.js"
+  },
+  "scripts": {
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "clsx": "^2.1.0",
+    "tailwind-merge": "^2.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
