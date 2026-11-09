@@ -119,7 +119,11 @@ def test_create_report_and_work_order_flow():
 
 
 def test_technicians_roster():
-    techs = list_technicians()
+    db = next(_get_db())
+    try:
+        techs = list_technicians(db, _get_current_user())
+    finally:
+        db.close()
     assert len(techs) >= 4
     assert any(t.name == "R. Patel" for t in techs)
 

@@ -13,8 +13,7 @@ from app.core.config import settings
 from app.db.session import Base
 
 # Import models so Base.metadata is populated for autogenerate.
-import app.models.report  # noqa: F401
-import app.models.work_order  # noqa: F401
+import app.models  # noqa: F401  (imports User, Report, WorkOrder, Technician)
 
 config = context.config
 

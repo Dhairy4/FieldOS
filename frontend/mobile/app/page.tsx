@@ -1,125 +1,150 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Button } from "@fieldos/shared";
-import { Card, CardContent, CardHeader, CardTitle } from "@fieldos/shared";
-import {
-  Clock,
-  Phone,
-  List,
-  CheckCircle2,
-  AlertCircle,
-  Smartphone,
-} from "lucide-react";
-import { formatRelativeTime } from "@fieldos/shared";
+import { useRouter } from "next/navigation";
+import { ArrowRight, ClipboardList, LogOut, Mic } from "lucide-react";
+import { EmptyState, ErrorState, Skeleton, reportApi, useAuth } from "@fieldos/shared";
+import type { Report } from "@fieldos/shared";
+import { MobileFrame } from "../components/layout/MobileFrame";
+import { ReportCard } from "../components/reports/ReportCard";
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
 
 export default function Home() {
-  const quickActions = [
-    {
-      title: "Report New Issue",
-      description: "Speak about a machine problem",
-      icon: Smartphone,
-      href: "/record",
-    },
-    {
-      title: "My Work Orders",
-      description: "Track assigned tasks",
-      icon: List,
-      href: "/reports/history",
-    },
-  ];
+  const router = useRouter();
+  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
+  const [reports, setReports] = useState<Report[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const recentReports = [
-    {
-      id: "WO-FN-001",
-      equipment: "Machine 12",
-      issue: "Motor overheating",
-      status: "in_progress",
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: "WO-FN-002",
-      equipment: "Pump Station B",
-      issue: "Vibration alert",
-      status: "awaiting_assignment",
-      updatedAt: new Date(Date.now() - 86400000).toISOString(),
-    },
-  ];
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) router.replace("/login");
+  }, [authLoading, isAuthenticated, router]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await reportApi.list({ page: 1, limit: 5 });
+      setReports(res.data ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load reports.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) load();
+  }, [isAuthenticated, load]);
+
+  const firstName = user?.name?.split(" ")[0];
 
   return (
-    <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-8">
-      <nav className="border-b border-border px-4 sm:px-0 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white font-bold">
-            F
+    <MobileFrame
+      nav
+      action={
+        <button
+          type="button"
+          aria-label="Sign out"
+          onClick={() => {
+            logout();
+            router.replace("/login");
+          }}
+          className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <LogOut className="h-5 w-5" />
+        </button>
+      }
+    >
+      {authLoading || !isAuthenticated ? (
+        <div className="space-y-4 lg:grid lg:grid-cols-12 lg:gap-8 lg:space-y-0">
+          <div className="space-y-4 lg:col-span-5">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-44 w-full" />
           </div>
-          <span className="font-semibold text-lg tracking-tight">FieldOS</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <button className="p-2 hover:bg-secondary rounded-full text-muted-foreground">
-            <Phone size={20} />
-          </button>
-          <button className="p-2 hover:bg-secondary rounded-full text-muted-foreground">
-            <AlertCircle size={20} />
-          </button>
-        </div>
-      </nav>
-
-      <main className="max-w-2xl mx-auto py-8 space-y-8">
-        <div className="space-y-3">
-          <h1 className="text-2xl sm:text-3xl font-bold">Welcome back</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            Ready to report your next field observation?
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {quickActions.map((action) => (
-            <Link key={action.title} href={action.href}>
-              <Card className="hover:bg-secondary/50 cursor-pointer transition-colors group">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{action.title}</CardTitle>
-                    <action.icon className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">{action.description}</p>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Clock size={18} /> Recent Reports
-          </h2>
-          <div className="space-y-3">
-            {recentReports.map((report) => (
-              <Card key={report.id} className="hover:bg-secondary/50 cursor-pointer transition-colors">
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-mono text-sm font-semibold">{report.id}</span>
-                    <span
-                      className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                        report.status === "in_progress"
-                          ? "bg-orange-100 text-orange-800"
-                          : "bg-blue-100 text-blue-800"
-                      }`}
-                    >
-                      {report.status.replace("_", " ")}
-                    </span>
-                  </div>
-                  <p className="text-sm font-medium">{report.equipment}</p>
-                  <p className="text-sm text-muted-foreground">{report.issue}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {formatRelativeTime(report.updatedAt)}
-                  </p>
-                </div>
-              </Card>
+          <div className="space-y-3 lg:col-span-7">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-28 w-full" />
             ))}
           </div>
         </div>
-      </main>
-    </div>
+      ) : (
+        <div className="lg:grid lg:grid-cols-12 lg:items-start lg:gap-8">
+          <div className="lg:col-span-5">
+            <p className="text-sm text-muted-foreground">{greeting()}</p>
+            <h1 className="text-2xl font-bold tracking-tight">
+              {firstName ? `Hi, ${firstName}` : "Welcome back"}
+            </h1>
+
+            <Link
+              href="/record"
+              className="group mt-5 flex min-h-[11rem] flex-col justify-between rounded-lg bg-primary p-5 text-primary-foreground shadow-pop transition-transform active:scale-[0.98] lg:mt-6 lg:min-h-[14rem]"
+            >
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-foreground/15">
+                <Mic className="h-8 w-8" aria-hidden="true" />
+              </span>
+              <span>
+                <span className="block text-2xl font-bold">Report an issue</span>
+                <span className="mt-1 flex items-center gap-1 text-sm opacity-90">
+                  Tap and speak in Gujarati, Hindi or English
+                  <ArrowRight
+                    className="h-4 w-4 transition-transform group-hover:translate-x-1"
+                    aria-hidden="true"
+                  />
+                </span>
+              </span>
+            </Link>
+          </div>
+
+          <section
+            className="mt-8 lg:col-span-7 lg:mt-0"
+            aria-labelledby="recent-heading"
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h2 id="recent-heading" className="text-base font-semibold">
+                Recent reports
+              </h2>
+              <Link
+                href="/reports/history"
+                className="flex min-h-[44px] items-center text-sm font-medium text-primary hover:underline"
+              >
+                See all
+              </Link>
+            </div>
+
+            {loading ? (
+              <div className="space-y-3">
+                {[0, 1, 2].map((i) => (
+                  <Skeleton key={i} className="h-28 w-full" />
+                ))}
+              </div>
+            ) : error ? (
+              <ErrorState title="Couldn’t load reports" message={error} onRetry={load} />
+            ) : reports.length === 0 ? (
+              <EmptyState
+                icon={ClipboardList}
+                title="No reports yet"
+                description="Your submitted issues will appear here."
+              />
+            ) : (
+              <ul className="space-y-3">
+                {reports.map((r) => (
+                  <li key={r.id}>
+                    <ReportCard report={r} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      )}
+    </MobileFrame>
   );
 }

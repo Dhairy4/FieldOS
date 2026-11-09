@@ -1,36 +1,59 @@
-"""Report endpoints — store transcribed field reports and linked work orders in PostgreSQL."""
+"""Report endpoints — store transcribed field reports and linked work orders."""
 
 import json
 import uuid
-from typing import Optional, List
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.orm import Session
 
+from app.api.v1.endpoints.auth import get_current_user
 from app.db.session import get_db
 from app.models.report import Report
 from app.models.work_order import WorkOrder
-from app.api.v1.endpoints.auth import get_current_user
 
 router = APIRouter()
 
+VALID_SEVERITIES = {"low", "medium", "high", "critical"}
+VALID_LANGUAGES = {"english", "hindi", "gujarati", "hinglish", "marathi"}
+
 
 class CreateReportPayload(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, str_strip_whitespace=True)
 
-    equipment_id: Optional[str] = Field(None, alias="equipmentId")
-    equipment_name: Optional[str] = Field(None, alias="equipmentName")
-    equipment_machine_number: Optional[str] = Field(None, alias="equipmentMachineNumber")
-    issue: str
-    observation: Optional[str] = None
-    category: Optional[str] = "mechanical"
-    severity: Optional[str] = "medium"
-    language: str = "english"
-    transcription: str
-    audio_url: Optional[str] = Field(None, alias="audioUrl")
+    equipment_id: Optional[str] = Field(None, alias="equipmentId", max_length=64)
+    equipment_name: Optional[str] = Field(None, alias="equipmentName", max_length=200)
+    equipment_machine_number: Optional[str] = Field(
+        None, alias="equipmentMachineNumber", max_length=64
+    )
+    issue: str = Field(..., min_length=1, max_length=2000)
+    observation: Optional[str] = Field(None, max_length=5000)
+    category: Optional[str] = Field(default="mechanical", max_length=32)
+    severity: Optional[str] = Field(default="medium", max_length=16)
+    language: str = Field(default="english", max_length=16)
+    transcription: str = Field(..., min_length=1, max_length=10000)
+    audio_url: Optional[str] = Field(None, alias="audioUrl", max_length=2048)
     missing_fields: Optional[List[str]] = Field(default_factory=list, alias="missingFields")
-    worker_id: Optional[str] = Field("tech-001", alias="workerId")
-    worker_name: Optional[str] = Field("Field Technician", alias="workerName")
+    worker_id: Optional[str] = Field(None, alias="workerId", max_length=64)
+    worker_name: Optional[str] = Field(None, alias="workerName", max_length=120)
+
+    @field_validator("severity")
+    @classmethod
+    def normalize_severity(cls, v: Optional[str]) -> str:
+        value = (v or "medium").strip().lower()
+        return value if value in VALID_SEVERITIES else "medium"
+
+    @field_validator("category")
+    @classmethod
+    def normalize_category(cls, v: Optional[str]) -> str:
+        return (v or "mechanical").strip().lower()
+
+    @field_validator("language")
+    @classmethod
+    def normalize_language(cls, v: str) -> str:
+        value = (v or "english").strip().lower()
+        return value if value in VALID_LANGUAGES else "english"
 
 
 @router.post("")
@@ -44,10 +67,15 @@ def create_report(
     eq_name = payload.equipment_name or f"Machine {eq_id}"
     eq_num = payload.equipment_machine_number or eq_id
 
+    # Attribute the report to the authenticated caller unless an explicit
+    # worker was supplied (e.g. supervisor filing on behalf of a technician).
+    worker_id = payload.worker_id or current_user.get("id") or "tech-001"
+    worker_name = payload.worker_name or current_user.get("name") or "Field Technician"
+
     report = Report(
         id=report_id,
-        worker_id=payload.worker_id or "tech-001",
-        worker_name=payload.worker_name or "Field Technician",
+        worker_id=worker_id,
+        worker_name=worker_name,
         equipment_id=eq_id,
         equipment_name=eq_name,
         equipment_machine_number=eq_num,
@@ -58,7 +86,7 @@ def create_report(
         language=payload.language,
         audio_url=payload.audio_url,
         transcription=payload.transcription,
-        missing_fields=json.dumps(payload.missing_fields or []),
+        missing_fields=payload.missing_fields or [],
         status="awaiting_assignment",
     )
     db.add(report)
@@ -91,6 +119,7 @@ def list_reports(
     limit: int = Query(20, ge=1, le=100),
     status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     q = db.query(Report)
     if status and status != "all":
@@ -107,7 +136,11 @@ def list_reports(
 
 
 @router.get("/{report_id}")
-def get_report(report_id: str, db: Session = Depends(get_db)):
+def get_report(
+    report_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     report = db.get(Report, report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -115,12 +148,15 @@ def get_report(report_id: str, db: Session = Depends(get_db)):
 
 
 def _to_dict(report: Report) -> dict:
-    missing = []
-    if report.missing_fields:
+    missing = report.missing_fields or []
+    # Legacy rows stored a JSON string in a TEXT column.
+    if isinstance(missing, str):
         try:
-            missing = json.loads(report.missing_fields)
-        except Exception:
+            missing = json.loads(missing)
+        except Exception:  # noqa: BLE001 - tolerate malformed legacy data
             missing = []
+    if not isinstance(missing, list):
+        missing = []
 
     return {
         "id": report.id,

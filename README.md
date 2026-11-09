@@ -70,6 +70,19 @@ alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
+### Demo Accounts
+
+The backend comes with pre-seeded demo accounts for the internship challenge
+(use `demo1234` as the password for all):
+
+| Email | Role | Language |
+|-------|------|----------|
+| `tech.demo@fieldos.ai` | Technician | Hinglish |
+| `supervisor.demo@fieldos.ai` | Supervisor | English |
+| `admin.demo@fieldos.ai` | Admin | English |
+
+Log in via either frontend app at `/login` with any of the above credentials.
+
 ### Frontend Setup
 
 ```bash
@@ -93,13 +106,28 @@ docker-compose up --build
 
 ## Environment Variables
 
-See `backend/.env.example` for required variables:
+See `backend/.env.example` for the full list:
 - `DATABASE_URL` — PostgreSQL connection string
 - `GNANI_API_KEY` — Gnani AI API key
-- `GNANI_PRISMA_ENDPOINT` — Prisma STT endpoint
-- `GNANI_TIMBRE_ENDPOINT` — Timbre TTS endpoint
-- `SECRET_KEY` — JWT secret key
-- `LLM_API_KEY` — LLM provider API key (optional)
+- `GNANI_BASE_URL` — Gnani API base URL
+- `SECRET_KEY` — JWT signing secret (required to be ≥32 chars in production)
+- `CORS_ORIGINS` — comma-separated allowed browser origins (never `*` in production)
+- `ALLOW_SQLITE_FALLBACK` — dev-only SQLite fallback (forced off in production)
+- `SEED_DEMO_DATA` — seed demo users/data (never runs in production)
+- `MAX_AUDIO_BYTES` / `VOICE_RATE_LIMIT_PER_MINUTE` — voice upload/rate guardrails
+- `APP_ENV` — `development` or `production`
+
+### Production Checklist
+
+1. Set `APP_ENV=production`.
+2. Generate a unique secret: `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+3. Set `CORS_ORIGINS` to your real frontend origins (no wildcard).
+4. Keep `ALLOW_SQLITE_FALLBACK=false` and `SEED_DEMO_DATA=false`.
+5. Run `alembic upgrade head` before starting the API (the Docker image does this automatically).
+6. Use managed PostgreSQL with backups; the API refuses to start if it is unreachable in production.
+
+Passwords are stored as bcrypt hashes in the `users` table. The demo accounts are
+seeded only when `SEED_DEMO_DATA=true` in a non-production environment.
 
 ## MVP Flow (Challenge Scope)
 

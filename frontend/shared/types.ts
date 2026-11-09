@@ -19,7 +19,7 @@ export interface User {
   role: UserRole;
   phone?: string;
   languagePreference: Language;
-  createdAt: string;
+  createdAt?: string;
 }
 
 export interface Technician extends User {

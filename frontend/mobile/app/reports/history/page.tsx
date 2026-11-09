@@ -1,104 +1,145 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Button } from "@fieldos/shared";
-import { Card } from "@fieldos/shared";
-import { Badge } from "@fieldos/shared";
-import { List, Clock, RefreshCw, Clipboard } from "lucide-react";
-import { formatRelativeTime } from "@fieldos/shared";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ClipboardList, Mic, RefreshCw } from "lucide-react";
+import { Button, EmptyState, ErrorState, Skeleton, cn, reportApi, useAuth } from "@fieldos/shared";
+import type { Report } from "@fieldos/shared";
+import { MobileFrame } from "../../../components/layout/MobileFrame";
+import { ReportCard } from "../../../components/reports/ReportCard";
 
-const MOCK_REPORTS = [
-  {
-    id: "WO-FN-001",
-    equipment: "Machine 12",
-    machineNumber: "M-12",
-    issue: "Motor overheating",
-    status: "in_progress" as const,
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "WO-FN-002",
-    equipment: "Pump Station B",
-    machineNumber: "PS-B",
-    issue: "Vibration alert",
-    status: "awaiting_assignment" as const,
-    updatedAt: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: "WO-FN-003",
-    equipment: "Conveyor Belt 3",
-    machineNumber: "CB-3",
-    issue: "Belt misalignment",
-    status: "resolved" as const,
-    updatedAt: new Date(Date.now() - 172800000).toISOString(),
-  },
+const FILTERS: { value: string; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "awaiting_assignment", label: "Awaiting" },
+  { value: "assigned", label: "Assigned" },
+  { value: "in_progress", label: "In progress" },
+  { value: "resolved", label: "Resolved" },
+  { value: "closed", label: "Closed" },
 ];
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  draft: { label: "Draft", color: "bg-gray-100 text-gray-800" },
-  awaiting_assignment: { label: "Awaiting Assignment", color: "bg-blue-100 text-blue-800" },
-  assigned: { label: "Assigned", color: "bg-purple-100 text-purple-800" },
-  in_progress: { label: "In Progress", color: "bg-orange-100 text-orange-800" },
-  resolved: { label: "Resolved", color: "bg-green-100 text-green-800" },
-  closed: { label: "Closed", color: "bg-gray-100 text-gray-800" },
-};
-
 export default function ReportsHistoryPage() {
+  const { isAuthenticated } = useAuth();
+  const [reports, setReports] = useState<Report[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState("all");
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setRefreshing(false);
-  };
+  const loadReports = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    setError("");
+    try {
+      const data = await reportApi.list();
+      setReports(data.data ?? []);
+    } catch {
+      setError(isRefresh ? "Failed to refresh reports." : "Failed to load reports.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    loadReports();
+  }, [isAuthenticated, loadReports]);
+
+  const visible = useMemo(
+    () => (filter === "all" ? reports : reports.filter((r) => r.status === filter)),
+    [reports, filter]
+  );
+
+  const refreshButton = (
+    <button
+      type="button"
+      aria-label="Refresh reports"
+      onClick={() => loadReports(true)}
+      disabled={refreshing}
+      className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+    >
+      <RefreshCw className={cn("h-5 w-5", refreshing && "animate-spin")} />
+    </button>
+  );
 
   return (
-    <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-8 py-8 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-xl font-semibold">My Reports</h1>
-          <p className="text-sm text-muted-foreground">Track your submitted work orders</p>
-        </div>
-        <button
-          onClick={handleRefresh}
-          className={`p-2 rounded-full transition-all ${
-            refreshing
-              ? "text-primary"
-              : "text-muted-foreground hover:bg-secondary"
-          }`}
-        >
-          <RefreshCw className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`} />
-        </button>
+    <MobileFrame
+      nav
+      requireAuth
+      action={refreshButton}
+      desktopAction={refreshButton}
+    >
+      <h1 className="text-2xl font-bold tracking-tight">My reports</h1>
+      <p className="mt-1 text-sm text-muted-foreground">Track the work orders you’ve raised.</p>
+
+      <div
+        role="group"
+        aria-label="Filter by status"
+        className="scrollbar-none -mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1"
+      >
+        {FILTERS.map((f) => {
+          const active = filter === f.value;
+          return (
+            <button
+              key={f.value}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setFilter(f.value)}
+              className={cn(
+                "min-h-[44px] shrink-0 rounded-full border px-4 text-sm font-medium transition-colors",
+                active
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-surface text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {f.label}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="space-y-4">
-        {MOCK_REPORTS.map((report) => (
-          <Card key={report.id} className="hover:bg-secondary/50 cursor-pointer transition-colors">
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-mono text-sm font-semibold">{report.id}</span>
-                <Badge
-                  className={STATUS_CONFIG[report.status].color}
-                >
-                  {STATUS_CONFIG[report.status].label}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-secondary/50 flex items-center justify-center text-muted-foreground">
-                  <Clipboard size={20} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{report.equipment}</p>
-                  <p className="text-sm text-muted-foreground">{report.issue}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">{formatRelativeTime(report.updatedAt)}</p>
-                </div>
-              </div>
-            </div>
-          </Card>
-        ))}
+      <div className="mt-4">
+        {loading ? (
+          <div className="space-y-3">
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-28 w-full" />
+            ))}
+          </div>
+        ) : error ? (
+          <ErrorState message={error} onRetry={() => loadReports()} />
+        ) : visible.length === 0 ? (
+          <EmptyState
+            icon={ClipboardList}
+            title={filter === "all" ? "No reports yet" : "Nothing here"}
+            description={
+              filter === "all"
+                ? "Start by reporting your first field issue."
+                : "No reports match this status."
+            }
+            action={
+              filter === "all" ? (
+                <Link href="/record">
+                  <Button>
+                    <Mic className="h-4 w-4" /> Report an issue
+                  </Button>
+                </Link>
+              ) : (
+                <Button variant="outline" onClick={() => setFilter("all")}>
+                  Show all
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <ul className="space-y-3">
+            {visible.map((r) => (
+              <li key={r.id}>
+                <ReportCard report={r} />
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-    </div>
+    </MobileFrame>
   );
 }

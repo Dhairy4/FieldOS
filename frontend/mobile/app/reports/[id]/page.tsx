@@ -1,94 +1,134 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@fieldos/shared";
-import { Badge } from "@fieldos/shared";
-import { ArrowLeft, AlertTriangle, Clock, CheckCircle2 } from "lucide-react";
-import { formatRelativeTime } from "@fieldos/shared";
-
-const MOCK_REPORT = {
-  id: "WO-FN-001",
-  equipment: "Machine 12",
-  machineNumber: "M-12",
-  issue: "Motor overheating",
-  observation: "Increased vibration",
-  category: "Mechanical / Electrical",
-  severity: "high",
-  language: "hinglish",
-  transcription: "Machine number 12 ma motor overheating thay chhe, vibration pan vadhi gayu chhe.",
-  status: "in_progress",
-  updatedAt: new Date().toISOString(),
-  createdAt: new Date(Date.now() - 3600000).toISOString(),
-};
-
-const STATUS_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
-  draft: { label: "Draft", icon: AlertTriangle, color: "bg-gray-100 text-gray-800" },
-  awaiting_assignment: { label: "Awaiting Assignment", icon: Clock, color: "bg-blue-100 text-blue-800" },
-  assigned: { label: "Assigned", icon: Clock, color: "bg-purple-100 text-purple-800" },
-  in_progress: { label: "In Progress", icon: CheckCircle2, color: "bg-orange-100 text-orange-800" },
-  resolved: { label: "Resolved", icon: CheckCircle2, color: "bg-green-100 text-green-800" },
-  closed: { label: "Closed", icon: CheckCircle2, color: "bg-gray-100 text-gray-800" },
-};
+import { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { Clock, FileText, Mic } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  ErrorState,
+  InlineAlert,
+  SeverityBadge,
+  Skeleton,
+  StatusBadge,
+  formatRelativeTime,
+  reportApi,
+} from "@fieldos/shared";
+import { MobileFrame } from "../../../components/layout/MobileFrame";
 
 export default function ReportDetailPage() {
-  const StatusIcon = STATUS_CONFIG[MOCK_REPORT.status].icon;
+  const params = useParams();
+  const id = typeof params.id === "string" ? params.id : String(params.id);
+  const [report, setReport] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    setIsLoading(true);
+    setError("");
+    reportApi
+      .get(id)
+      .then((r: any) => {
+        setReport(r);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load report.");
+        setIsLoading(false);
+      });
+  }, [id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
-    <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-8 py-8 max-w-lg mx-auto">
-      <nav className="flex items-center justify-between mb-8">
-        <button className="p-2 hover:bg-secondary rounded-full text-muted-foreground" onClick={() => window.history.back()}>
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className="text-xl font-semibold">Report Details</h1>
-        <div className="w-8" />
-      </nav>
+    <MobileFrame back="/reports/history" requireAuth>
+      <h1 className="text-2xl font-bold tracking-tight">Report details</h1>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-mono text-sm font-semibold">{MOCK_REPORT.id}</span>
-            <Badge className={STATUS_CONFIG[MOCK_REPORT.status].color}>
-              {STATUS_CONFIG[MOCK_REPORT.status].label}
-            </Badge>
-          </div>
-          <CardTitle>{MOCK_REPORT.equipment}</CardTitle>
-          <p className="text-sm text-muted-foreground">{MOCK_REPORT.machineNumber}</p>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-3">
-            <p className="text-sm font-medium">Issue</p>
-            <p className="text-lg">{MOCK_REPORT.issue}</p>
-          </div>
-          <div className="space-y-3">
-            <p className="text-sm font-medium">Observation</p>
-            <p className="text-lg">{MOCK_REPORT.observation}</p>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-3 rounded-lg border border-input bg-background">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Category</p>
-              <p className="text-sm font-medium">{MOCK_REPORT.category}</p>
+      {isLoading ? (
+        <div className="mt-5 space-y-3">
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+      ) : error || !report ? (
+        <ErrorState className="mt-5" title="Couldn’t load report" message={error} onRetry={load} />
+      ) : (
+        <div className="mt-5 space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-mono text-xs font-semibold text-muted-foreground">{report.id}</span>
+                <StatusBadge status={report.status} />
+              </div>
+              <CardTitle className="pt-1 text-lg">{report.equipmentName}</CardTitle>
+              {report.equipmentMachineNumber || report.equipmentId ? (
+                <p className="text-sm text-muted-foreground">{report.equipmentMachineNumber || report.equipmentId}</p>
+              ) : null}
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Issue</p>
+                <p className="mt-1 text-base">{report.issue}</p>
+              </div>
+              {report.observation && (
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Observation</p>
+                  <p className="mt-1 text-base">{report.observation}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-md border border-border bg-background p-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Category</p>
+                  <p className="mt-1 text-sm font-medium capitalize">{report.category || "—"}</p>
+                </div>
+                <div className="rounded-md border border-border bg-background p-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Severity</p>
+                  <div className="mt-1">
+                    {report.severity ? <SeverityBadge severity={report.severity} /> : <span className="text-sm">—</span>}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {report.transcription && (
+            <Card>
+              <CardContent className="pt-4 sm:pt-5">
+                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <Mic className="h-3.5 w-3.5" aria-hidden="true" /> Transcription
+                </div>
+                <p className="mt-2 break-words text-sm italic leading-relaxed">{report.transcription}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {report.missingFields && report.missingFields.length > 0 && (
+            <InlineAlert variant="info">
+              <div className="flex items-start gap-2">
+                <FileText className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <div>
+                  <p className="font-medium">Missing fields</p>
+                  <p className="mt-0.5 text-xs">{report.missingFields.join(", ")}</p>
+                </div>
+              </div>
+            </InlineAlert>
+          )}
+
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-surface p-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+              <Clock className="h-4 w-4" aria-hidden="true" />
             </div>
-            <div className="p-3 rounded-lg border border-input bg-background">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Severity</p>
-              <Badge className="bg-orange-100 text-orange-800">{MOCK_REPORT.severity}</Badge>
-            </div>
-          </div>
-          <div className="p-3 rounded-lg border border-input bg-background">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Transcription</p>
-            <p className="text-sm">{MOCK_REPORT.transcription}</p>
-          </div>
-        </CardContent>
-        <div className="border-t border-border p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-secondary/50 flex items-center justify-center text-muted-foreground">
-              <Clock size={16} />
-            </div>
-            <div className="flex-1">
+            <div>
               <p className="text-sm font-medium">Last updated</p>
-              <p className="text-xs text-muted-foreground">{formatRelativeTime(MOCK_REPORT.updatedAt)}</p>
+              <p className="text-xs text-muted-foreground">{formatRelativeTime(report.updatedAt)}</p>
             </div>
           </div>
         </div>
-      </Card>
-    </div>
+      )}
+    </MobileFrame>
   );
 }

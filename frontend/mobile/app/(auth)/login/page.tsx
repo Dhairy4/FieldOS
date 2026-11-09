@@ -2,74 +2,99 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@fieldos/shared";
-import { Input } from "@fieldos/shared";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@fieldos/shared";
-import { Mail, Lock, User, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { ArrowRight, Eye, EyeOff, Info } from "lucide-react";
+import { Button, Field, InlineAlert, Input, useAuth } from "@fieldos/shared";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const router = useRouter();
+  const { login } = useAuth();
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError("");
     setIsLoading(true);
     try {
-      // Placeholder for auth API call
-      // await authApi.login({ email, password });
+      await login(email, password);
       router.push("/");
     } catch (err) {
-      alert("Login failed");
+      setError(err instanceof Error ? err.message : "Login failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-secondary/50 px-4">
-      <Card className="w-full md:w-[400px]">
-        <CardHeader className="text-center space-y-1">
-          <CardTitle className="text-2xl">Welcome back</CardTitle>
-          <CardDescription>Sign in to your FieldOS technician account</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="flex items-center gap-3 px-2 py-2 rounded-md border border-input bg-background">
-              <User className="h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="name@company.com"
-                value={email}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-                className="flex-1 bg-transparent"
-              />
-            </div>
-            <div className="flex items-center gap-3 px-2 py-2 rounded-md border border-input bg-background">
-              <Lock className="h-4 w-4 text-muted-foreground" />
-              <Input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                className="flex-1 bg-transparent"
-              />
-            </div>
-            <Button type="submit" className="w-full" isLoading={isLoading}>
-              Sign in <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-2">
-          <p className="text-sm text-center text-muted-foreground">
-            Don't have an account?{" "}
-            <Link href="/register" className="text-primary font-medium hover:underline">
-              Create account
-            </Link>
-          </p>
-        </CardFooter>
-      </Card>
+    <div className="animate-slide-up">
+      <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
+      <p className="mt-1 text-sm text-muted-foreground">Sign in to your FieldOS technician account.</p>
+
+      <form onSubmit={handleLogin} className="mt-6 space-y-4" noValidate>
+        {error && <InlineAlert variant="danger">{error}</InlineAlert>}
+
+        <Field label="Email" htmlFor="email">
+          <Input
+            id="email"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder="name@company.com"
+            required
+            invalid={!!error}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </Field>
+
+        <Field label="Password" htmlFor="password">
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              placeholder="••••••••"
+              required
+              invalid={!!error}
+              className="pr-12"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <button
+              type="button"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((s) => !s)}
+              className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center text-muted-foreground hover:text-foreground sm:h-10"
+            >
+              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+            </button>
+          </div>
+        </Field>
+
+        <Button type="submit" size="lg" className="w-full" isLoading={isLoading}>
+          Sign in <ArrowRight className="h-5 w-5" />
+        </Button>
+      </form>
+
+      <div className="mt-5 flex items-start gap-2 rounded-md border border-info/25 bg-info-soft p-3 text-xs text-info">
+        <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        <p>
+          Demo account: <span className="font-mono font-medium">tech.demo@fieldos.ai</span> /{" "}
+          <span className="font-mono font-medium">demo1234</span>
+        </p>
+      </div>
+
+      <p className="mt-6 text-center text-sm text-muted-foreground">
+        Don&apos;t have an account?{" "}
+        <Link href="/register" className="font-medium text-primary hover:underline">
+          Create account
+        </Link>
+      </p>
     </div>
   );
 }

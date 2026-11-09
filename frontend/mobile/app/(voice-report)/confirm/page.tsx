@@ -1,124 +1,198 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@fieldos/shared";
-import { Card, CardContent, CardHeader, CardTitle } from "@fieldos/shared";
-import { Badge } from "@fieldos/shared";
-import { Edit3, Speaker, CheckCircle2, Loader2 } from "lucide-react";
-import { cn } from "@fieldos/shared";
+import { Mic } from "lucide-react";
+import { Button, InlineAlert, Skeleton, EmptyState, reportApi, voiceApi } from "@fieldos/shared";
+import { MobileFrame } from "../../../components/layout/MobileFrame";
+import { ExtractionReview, type ReviewField } from "../../../components/voice/ExtractionReview";
+import { VoiceConfirmation } from "../../../components/voice/VoiceConfirmation";
 
-interface ExtractedField {
-  label: string;
-  value: string;
-  editable: boolean;
-}
+const FIELD_MAP: Record<string, { label: string; editable: boolean }> = {
+  equipment_name: { label: "Equipment", editable: true },
+  equipment_machine_number: { label: "Machine number", editable: true },
+  issue: { label: "Issue", editable: true },
+  observation: { label: "Observation", editable: true },
+  category: { label: "Category", editable: false },
+  severity: { label: "Severity", editable: false },
+};
 
-const EXTRACTED_FIELDS: ExtractedField[] = [
-  { label: "Equipment", value: "Machine 12", editable: true },
-  { label: "Issue", value: "Motor overheating", editable: true },
-  { label: "Observation", value: "Increased vibration", editable: true },
-  { label: "Category", value: "Mechanical / Electrical", editable: false },
-  { label: "Severity", value: "High", editable: false },
-];
+const FIELD_LABELS: Record<string, string> = Object.fromEntries(
+  Object.entries(FIELD_MAP).map(([k, v]) => [k, v.label])
+);
 
 export default function ConfirmPage() {
+  const router = useRouter();
+  const [isLoaded, setIsLoaded] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [editedFields, setEditedFields] = useState(EXTRACTED_FIELDS);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [fields, setFields] = useState<ReviewField[]>([]);
+  const [rawResult, setRawResult] = useState<any>(null);
+  const [error, setError] = useState("");
+  const [language, setLanguage] = useState("english");
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem("fieldos_voice_result");
+    if (stored) {
+      try {
+        const result = JSON.parse(stored);
+        setRawResult(result);
+        setLanguage(result.language || "english");
+
+        const extracted = result.extracted || {};
+        const fieldList: ReviewField[] = Object.entries(FIELD_MAP).map(([key, config]) => {
+          const value = extracted[key];
+          return {
+            label: config.label,
+            key,
+            value: value === undefined || value === null ? "" : String(value),
+            editable: config.editable,
+          };
+        });
+        setFields(fieldList);
+      } catch {
+        /* fall through to empty state */
+      }
+    }
+    setIsLoaded(true);
+    return () => {
+      audioRef.current?.pause();
+    };
+  }, []);
+
+  const handleUpdate = useCallback((index: number, value: string) => {
+    setFields((prev) => prev.map((f, i) => (i === index ? { ...f, value } : f)));
+  }, []);
+
+  const handlePlayConfirmation = useCallback(async () => {
+    if (!rawResult?.extracted?.confirmation_message) return;
+    setIsPlaying(true);
+    setError("");
+    try {
+      const audioBytes = await voiceApi.tts(rawResult.extracted.confirmation_message, language);
+      const url = URL.createObjectURL(new Blob([audioBytes], { type: "audio/wav" }));
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      const done = () => {
+        setIsPlaying(false);
+        audioRef.current = null;
+        URL.revokeObjectURL(url);
+      };
+      audio.onended = done;
+      audio.onerror = done;
+      await audio.play();
+    } catch (err) {
+      setIsPlaying(false);
+      setError("Voice confirmation unavailable.");
+    }
+  }, [rawResult, language]);
 
   const handleConfirm = async () => {
+    if (!rawResult) return;
     setIsConfirming(true);
-    setTimeout(() => {
-      setIsConfirming(false);
-      // Navigate to success
-    }, 1500);
-  };
+    setError("");
 
-  const handleEdit = (index: number) => {
-    const newValue = window.prompt(`Edit ${editedFields[index].label}`, editedFields[index].value);
-    if (newValue !== null) {
-      const updated = [...editedFields];
-      updated[index].value = newValue;
-      setEditedFields(updated);
+    try {
+      const updatedFields: Record<string, string> = {};
+      fields.forEach((f) => {
+        if (f.key) updatedFields[f.key] = f.value;
+      });
+
+      const extracted = { ...rawResult.extracted, ...updatedFields };
+
+      const reportData = {
+        equipmentId: extracted.equipment_id || "M-12",
+        equipmentName: extracted.equipment_name || "Machine",
+        equipmentMachineNumber: extracted.equipment_machine_number || "12",
+        issue: extracted.issue || "Reported issue",
+        observation: extracted.observation || undefined,
+        category: extracted.category || "mechanical",
+        severity: (extracted.severity as any) || "medium",
+        language: rawResult.language || "english",
+        transcription: rawResult.transcription || "",
+        missingFields: extracted.missing_fields || [],
+      };
+
+      const created = await reportApi.create(reportData);
+
+      sessionStorage.removeItem("fieldos_voice_result");
+      router.push(`/success?workOrderId=${created.workOrderId || created.id}`);
+    } catch (err) {
+      setIsConfirming(false);
+      setError(err instanceof Error ? err.message : "Failed to create work order. Please try again.");
     }
   };
 
+  const missing: string[] = Array.isArray(rawResult?.extracted?.missing_fields)
+    ? rawResult.extracted.missing_fields
+    : [];
+  const clarification: string | undefined =
+    rawResult?.extracted?.clarification_question || rawResult?.extracted?.clarification;
+  const hasData = !!rawResult;
+
   return (
-    <div className="min-h-screen bg-background px-4 sm:px-6 lg:px-8 py-8 max-w-md mx-auto">
-      <nav className="flex items-center justify-between mb-8">
-        <Button variant="ghost" size="sm">
-          <Speaker size={18} />
-        </Button>
-        <h1 className="text-xl sm:text-2xl font-semibold">Review Report</h1>
-        <div className="w-8" />
-      </nav>
-
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle className="text-lg sm:text-xl">Extracted Details</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Review the information captured from your voice report
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {editedFields.map((field, index) => (
-            <div key={field.label} className="flex items-center justify-between p-3 rounded-lg border border-input bg-background">
-              <div>
-                <p className="text-sm text-muted-foreground">{field.label}</p>
-                <p className="text-sm font-medium">{field.value}</p>
-              </div>
-              {field.editable && (
-                <button
-                  onClick={() => handleEdit(index)}
-                  className="p-1.5 text-muted-foreground hover:text-primary transition-colors"
-                >
-                  <Edit3 size={16} />
-                </button>
-              )}
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <div className="mt-8 space-y-4">
-        <div className="flex items-center justify-between p-4 rounded-xl border border-input bg-secondary/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-              <Speaker size={20} />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Voice Confirmation</p>
-              <p className="text-xs text-muted-foreground">
-                Tap to hear the report read back in your language
-              </p>
-            </div>
+    <MobileFrame
+      back="/record"
+      requireAuth
+      footer={
+        hasData ? (
+          <div className="grid grid-cols-[auto,1fr] gap-3">
+            <Button variant="outline" size="lg" onClick={() => router.push("/record")} disabled={isConfirming}>
+              <Mic className="h-5 w-5" /> Re-record
+            </Button>
+            <Button size="lg" onClick={handleConfirm} isLoading={isConfirming}>
+              {isConfirming ? "Creating…" : "Create work order"}
+            </Button>
           </div>
-          <button
-            onClick={() => setIsPlaying((p) => !p)}
-            className={`p-2 rounded-full transition-all ${
-              isPlaying
-                ? "bg-primary text-white shadow-[0_0_0_10px_rgba(14,165,233,0.4)] animate-pulse"
-                : "border border-input text-muted-foreground hover:bg-secondary"
-            }`}
-          >
-            {isPlaying ? (
-              <Loader2 className="h-5 w-5 animate-spin text-white" />
-            ) : (
-              <Speaker size={20} />
-            )}
-          </button>
-        </div>
+        ) : undefined
+      }
+    >
+      <h1 className="text-2xl font-bold tracking-tight">Review report</h1>
+      <p className="mt-1 text-sm text-muted-foreground">Confirm the details before we raise a work order.</p>
 
-        <div className="grid grid-cols-2 sm:grid-cols-2 gap-3">
-          <Button variant="outline" className="w-full" onClick={() => window.history.back()}>
-            Re-record
-          </Button>
-          <Button className="w-full" onClick={handleConfirm} isLoading={isConfirming}>
-            {isConfirming ? "Creating…" : "Create Work Order"}
-          </Button>
+      {error && (
+        <InlineAlert variant="danger" className="mt-4">
+          {error}
+        </InlineAlert>
+      )}
+
+      {!isLoaded ? (
+        <div className="mt-5 space-y-3">
+          <Skeleton className="h-64 w-full" />
+          <Skeleton className="h-16 w-full" />
         </div>
-      </div>
-    </div>
+      ) : !hasData ? (
+        <EmptyState
+          className="mt-6"
+          icon={Mic}
+          title="Nothing to review"
+          description="Record a voice report first and it will show up here."
+          action={<Button onClick={() => router.push("/record")}>Start recording</Button>}
+        />
+      ) : (
+        <div className="mt-5 space-y-4">
+          {(missing.length > 0 || clarification) && (
+            <InlineAlert variant="warning">
+              <p className="font-medium">{clarification || "A few details are missing."}</p>
+              {missing.length > 0 && (
+                <p className="mt-1 text-xs">
+                  Please add: {missing.map((m) => FIELD_LABELS[m] || m.replace(/_/g, " ")).join(", ")}. Tap the pencil
+                  below, or re-record.
+                </p>
+              )}
+            </InlineAlert>
+          )}
+
+          <ExtractionReview fields={fields} onUpdate={handleUpdate} />
+
+          <VoiceConfirmation
+            onPlay={handlePlayConfirmation}
+            isPlaying={isPlaying}
+            disabled={!rawResult?.extracted?.confirmation_message}
+          />
+        </div>
+      )}
+    </MobileFrame>
   );
 }

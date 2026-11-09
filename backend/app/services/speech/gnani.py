@@ -76,6 +76,7 @@ def to_wav_pcm(audio_bytes: bytes) -> bytes:
             input=audio_bytes,
             capture_output=True,
             check=True,
+            timeout=30,
         )
         if proc.stdout:
             return proc.stdout
@@ -133,7 +134,9 @@ class GnaniSpeechService(SpeechService):
             raise RuntimeError("Gnani Prisma STT client could not be initialized.")
 
         try:
-            wav_bytes = to_wav_pcm(audio_bytes)
+            # Run ffmpeg off the event loop so one slow conversion cannot
+            # block every other request.
+            wav_bytes = await asyncio.to_thread(to_wav_pcm, audio_bytes)
             result = await asyncio.to_thread(
                 self._stt_client.transcribe_bytes,
                 wav_bytes,

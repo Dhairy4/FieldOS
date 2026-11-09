@@ -1,30 +1,43 @@
-"""Technicians endpoints — roster and availability."""
+"""Technician roster endpoints — persisted in the database."""
 
 from typing import List, Optional
-from fastapi import APIRouter
+
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.api.v1.endpoints.auth import get_current_user
+from app.db.session import get_db
+from app.models.technician import Technician
 
 router = APIRouter()
 
 
-class Technician(BaseModel):
+class TechnicianOut(BaseModel):
     id: str
     name: str
     role: str
     availability: str  # available / busy / offline
     currentWO: Optional[str] = "—"
     completed: int = 0
-    phone: str = "+91 98765 43210"
+    phone: str = ""
 
 
-TECHNICIANS_DATA = [
-    Technician(id="T-001", name="R. Patel", role="Senior Maintenance Tech", availability="available", currentWO="—", completed=28),
-    Technician(id="T-002", name="S. Sharma", role="Mechanical Specialist", availability="busy", currentWO="WO-FN-001", completed=19),
-    Technician(id="T-003", name="A. Khan", role="Electrical Engineer", availability="available", currentWO="—", completed=34),
-    Technician(id="T-004", name="M. Singh", role="HVAC & Pump Specialist", availability="available", currentWO="—", completed=15),
-]
-
-
-@router.get("", response_model=List[Technician])
-def list_technicians():
-    return TECHNICIANS_DATA
+@router.get("", response_model=List[TechnicianOut])
+def list_technicians(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    technicians = db.query(Technician).order_by(Technician.id).all()
+    return [
+        TechnicianOut(
+            id=t.id,
+            name=t.name,
+            role=t.role,
+            availability=t.availability,
+            currentWO=t.current_work_order_id or "—",
+            completed=t.completed,
+            phone=t.phone,
+        )
+        for t in technicians
+    ]

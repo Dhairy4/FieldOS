@@ -4,27 +4,64 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --primary: 199 89% 46%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 199 89% 46%;
-    --radius: 0.75rem;
+    --background: 40 20% 98%;
+    --foreground: 222 30% 11%;
+    --surface: 0 0% 100%;
+    --surface-raised: 0 0% 100%;
+    --primary: 32 95% 44%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 94%;
+    --secondary-foreground: 222 30% 18%;
+    --muted: 220 14% 95%;
+    --muted-foreground: 220 9% 40%;
+    --accent: 220 14% 94%;
+    --accent-foreground: 222 30% 14%;
+    --destructive: 0 72% 46%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 89%;
+    --input: 220 13% 86%;
+    --ring: 32 95% 44%;
+    --radius: 0.625rem;
+    --shadow: 222 30% 11%;
+
+    --success: 152 60% 30%;
+    --success-soft: 152 55% 94%;
+    --warning: 32 90% 36%;
+    --warning-soft: 40 95% 91%;
+    --danger: 0 70% 42%;
+    --danger-soft: 0 85% 95%;
+    --info: 214 75% 40%;
+    --info-soft: 214 90% 95%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 222 28% 7%;
+    --foreground: 210 20% 96%;
+    --surface: 222 24% 10%;
+    --surface-raised: 222 22% 13%;
+    --primary: 38 95% 55%;
+    --primary-foreground: 222 30% 8%;
+    --secondary: 222 18% 16%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 222 18% 15%;
+    --muted-foreground: 218 12% 66%;
+    --accent: 222 18% 17%;
+    --accent-foreground: 210 20% 96%;
+    --destructive: 0 75% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 16% 19%;
+    --input: 222 16% 24%;
+    --ring: 38 95% 55%;
+    --shadow: 0 0% 0%;
+
+    --success: 152 55% 55%;
+    --success-soft: 152 40% 14%;
+    --warning: 38 92% 60%;
+    --warning-soft: 38 50% 14%;
+    --danger: 0 85% 70%;
+    --danger-soft: 0 45% 15%;
+    --info: 213 90% 70%;
+    --info-soft: 214 45% 16%;
   }
 }
 
@@ -32,8 +69,59 @@
   * {
     @apply border-border;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings: "rlig" 1, "calt" 1, "cv11" 1;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+  input,
+  select,
+  textarea {
+    /* 16px prevents iOS zoom on focus */
+    font-size: 16px;
+  }
+  @media (min-width: 640px) {
+    input,
+    select,
+    textarea {
+      font-size: inherit;
+    }
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

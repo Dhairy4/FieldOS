@@ -25,7 +25,7 @@ def test_work_order_crud():
         transcription="Machine number 12 ma motor overheating thay chhe.",
         category="mechanical",
         severity="high",
-        missing_fields="[]",
+        missing_fields=[],
         status="draft",
     )
     db.add(report)
