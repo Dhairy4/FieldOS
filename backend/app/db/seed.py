@@ -34,13 +34,6 @@ DEMO_USERS = [
         "role": "supervisor",
         "language_preference": "english",
     },
-    {
-        "id": "admin-demo-001",
-        "email": "admin.demo@fieldos.ai",
-        "name": "Demo Admin",
-        "role": "admin",
-        "language_preference": "english",
-    },
 ]
 
 DEMO_TECHNICIANS = [

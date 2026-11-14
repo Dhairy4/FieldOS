@@ -79,7 +79,6 @@ The backend comes with pre-seeded demo accounts for the internship challenge
 |-------|------|----------|
 | `tech.demo@fieldos.ai` | Technician | Hinglish |
 | `supervisor.demo@fieldos.ai` | Supervisor | English |
-| `admin.demo@fieldos.ai` | Admin | English |
 
 Log in via either frontend app at `/login` with any of the above credentials.
 

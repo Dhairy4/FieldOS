@@ -16,7 +16,6 @@ def test_demo_users_can_log_in(client):
     for email, role in [
         ("tech.demo@fieldos.ai", "technician"),
         ("supervisor.demo@fieldos.ai", "supervisor"),
-        ("admin.demo@fieldos.ai", "admin"),
     ]:
         response = _login(client, email)
         assert response.status_code == 200, response.text
@@ -104,6 +103,25 @@ def test_register_rejects_invalid_role(client):
         },
     )
     assert response.status_code == 422
+
+
+def test_register_cannot_create_admin(client):
+    """Elevated roles must not be self-service assignable."""
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "name": "Wannabe Admin",
+            "email": f"admin.{uuid.uuid4().hex[:8]}@fieldos.ai",
+            "password": "strongpass123",
+            "role": "admin",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_seeded_admin_account_is_gone(client):
+    """The admin persona was removed from the demo data."""
+    assert _login(client, "admin.demo@fieldos.ai").status_code == 401
 
 
 def test_data_endpoints_require_authentication(client):

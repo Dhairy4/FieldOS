@@ -9,7 +9,6 @@ const DEMO_PASSWORD = "demo1234";
 const DEMO_ACCOUNTS = [
   { role: "Technician", email: "tech.demo@fieldos.ai" },
   { role: "Supervisor", email: "supervisor.demo@fieldos.ai" },
-  { role: "Admin", email: "admin.demo@fieldos.ai" },
 ];
 
 const HIGHLIGHTS = [

@@ -26,7 +26,9 @@ router = APIRouter()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
-ALLOWED_ROLES = {"technician", "supervisor", "admin"}
+# Self-service registration may only create field-facing accounts. Elevated
+# access is granted out-of-band, never through the public endpoint.
+ALLOWED_ROLES = {"technician", "supervisor"}
 
 
 class LoginPayload(BaseModel):

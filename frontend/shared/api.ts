@@ -6,6 +6,18 @@ function getToken(): string | null {
   return typeof window !== "undefined" ? localStorage.getItem("fieldos_token") : null;
 }
 
+/**
+ * Drop a session that the server has rejected. A token can become invalid
+ * without the client knowing (secret rotation, expiry, account removal), so
+ * a 401 on an authenticated request must clear the stale credentials instead
+ * of leaving the UI in a half-logged-in state.
+ */
+function clearStoredSession(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("fieldos_token");
+  localStorage.removeItem("fieldos_user");
+}
+
 function authHeaders(): Record<string, string> {
   const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -56,6 +68,19 @@ export async function apiRequest<T>(
         : Array.isArray(error?.detail)
           ? error.detail.map((d: any) => d?.msg ?? String(d)).join(", ")
           : `Request failed (${res.status})`;
+
+    // Only treat a 401 as a dead session when we actually sent a token.
+    // A failed login has no token and must surface its error normally.
+    if (res.status === 401 && headers.Authorization) {
+      clearStoredSession();
+      if (
+        typeof window !== "undefined" &&
+        !window.location.pathname.startsWith("/login")
+      ) {
+        window.location.assign("/login");
+      }
+    }
+
     throw new Error(detail);
   }
 
